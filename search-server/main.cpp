@@ -80,7 +80,11 @@ public:
     }
 
 private:
-
+    struct QueryWord {
+        string data;
+        bool minus;
+        bool stop;
+    };
     struct Query {
         set<string> plus;
         set<string> minus;
@@ -95,21 +99,37 @@ private:
         return stop_words_.count(word) > 0;
     }
     //-------------------------------------------------------------------------------------------------------
+
+
+    QueryWord ParseQueryWord(string text) const {
+        bool minus = false;
+        if (text[0] == '-') {
+            minus = true;
+            text = text.substr(1);
+        }
+        return { text, minus, IsStopWord(text) };
+    }
+
+
+
     Query ParseQuery(const string& query) const {
         Query result;
 
-        for (const string& word : SplitIntoWordsNoStop(query)) {
-
-            if (word.at(0) == '-') {
-
-                result.minus.insert(word);
-            }
-            else {
-                result.plus.insert(word);
+        for (const string& word : SplitIntoWords(query)) {
+            const QueryWord query_word = ParseQueryWord(word);
+            if (!query_word.stop) {
+                if (query_word.minus) {
+                    result.minus.insert(query_word.data);
+                }
+                else {
+                    result.plus.insert(query_word.data);
+                }
             }
         }
         return result;
     }
+
+
 
     vector<string> SplitIntoWordsNoStop(const string& text) const {
         vector<string> words;
@@ -126,7 +146,7 @@ private:
         map<int, double> id_relev;
         for (const auto& qword : plusminus_.plus) {
             if (word_idfreq_.count(qword) != 0) {
-                double idf= log(document_count_ * 1.0 / word_idfreq_.at(qword).size());
+                double idf = log(document_count_ * 1.0 / word_idfreq_.at(qword).size());
                 for (const auto& [id, tf] : word_idfreq_.at(qword)) {
                     id_relev[id] += tf * idf;
                 }
