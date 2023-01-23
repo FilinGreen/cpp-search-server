@@ -126,8 +126,9 @@ private:
         map<int, double> id_relev;
         for (const auto& qword : plusminus_.plus) {
             if (word_idfreq_.count(qword) != 0) {
+                double idf= log(document_count_ * 1.0 / word_idfreq_.at(qword).size());
                 for (const auto& [id, tf] : word_idfreq_.at(qword)) {
-                    id_relev[id] += tf * log(document_count_ * 1.0 / word_idfreq_.at(qword).size());
+                    id_relev[id] += tf * idf;
                 }
             }
         }
