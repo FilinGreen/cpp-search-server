@@ -6,10 +6,12 @@
 #include <string>
 #include <utility>
 #include <vector>
-
+#include <numeric>
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
+
+constexpr double pog = 1e-6;
 
 string ReadLine() {
     string s;
@@ -76,35 +78,14 @@ public:
         documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
     }
     //-------------------------------------------------------------------------------------------
-    vector<Document> FindTopDocuments(const string& raw_query) const {
-        DocumentStatus status = DocumentStatus::ACTUAL;
-        const Query query = ParseQuery(raw_query);
-        auto matched_documents = FindAllDocuments(query, status);
-
-        sort(matched_documents.begin(), matched_documents.end(),
-            [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
-                    return lhs.rating > rhs.rating;
-                }
-                else {
-                    return lhs.relevance > rhs.relevance;
-                }
-            });
-        if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
-            matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
-        }
-        return matched_documents;
-    }
-
-    //---------------------------------------
-    vector<Document> FindTopDocuments(const string& raw_query, DocumentStatus status) const {
+    vector<Document> FindTopDocuments(const string& raw_query, DocumentStatus status = DocumentStatus::ACTUAL) const {
 
         const Query query = ParseQuery(raw_query);
         auto matched_documents = FindAllDocuments(query, status);
 
         sort(matched_documents.begin(), matched_documents.end(),
             [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+                if (abs(lhs.relevance - rhs.relevance) < pog) {
                     return lhs.rating > rhs.rating;
                 }
                 else {
@@ -196,10 +177,8 @@ private:
         if (ratings.empty()) {
             return 0;
         }
-        int rating_sum = 0;
-        for (const int rating : ratings) {
-            rating_sum += rating;
-        }
+        int rating_sum = accumulate(ratings.begin(), ratings.end(), 0);
+
         return rating_sum / static_cast<int>(ratings.size());
     }
 
@@ -245,52 +224,36 @@ private:
         return log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
     }
     //------------------------------------------------------------------------------------------
-        // для статуса
-    vector<Document> FindAllDocuments(const Query& query, DocumentStatus status) const {
-        map<int, double> document_to_relevance;
-        for (const string& word : query.plus_words) {
-            if (word_to_document_freqs_.count(word) == 0) {
-                continue;
-            }
-            const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
-            for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
-                if (documents_.at(document_id).status == status) {
-                    document_to_relevance[document_id] += term_freq * inverse_document_freq;
-                }
-            }
-        }
 
-        for (const string& word : query.minus_words) {
-            if (word_to_document_freqs_.count(word) == 0) {
-                continue;
-            }
-            for (const auto [document_id, _] : word_to_document_freqs_.at(word)) {
-                document_to_relevance.erase(document_id);
-            }
-
-        }
-        vector<Document> matched_documents;
-        for (const auto [document_id, relevance] : document_to_relevance) {
-            matched_documents.push_back(
-                { document_id, relevance, documents_.at(document_id).rating });
-        }
-        return matched_documents;
-    }
-
-    //----------------------------------------------
         // для ламбда 
     template <typename Lambda>
     vector<Document> FindAllDocuments(const Query& query, const Lambda& lambda) const {
         map<int, double> document_to_relevance;
-        for (const string& word : query.plus_words) {
-            if (word_to_document_freqs_.count(word) == 0) {
-                continue;
+        if constexpr (is_same_v<Lambda, DocumentStatus>) {
+            for (const string& word : query.plus_words) {
+                if (word_to_document_freqs_.count(word) == 0) {
+                    continue;
+                }
+                const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
+                for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
+                    if (documents_.at(document_id).status == lambda) {
+                        document_to_relevance[document_id] += term_freq * inverse_document_freq;
+                    }
+                }
             }
-            const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
-            for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
 
-                if (lambda(document_id, documents_.at(document_id).status, documents_.at(document_id).rating)) {
-                    document_to_relevance[document_id] += term_freq * inverse_document_freq;
+        }
+        else {
+            for (const string& word : query.plus_words) {
+                if (word_to_document_freqs_.count(word) == 0) {
+                    continue;
+                }
+                const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
+                for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
+
+                    if (lambda(document_id, documents_.at(document_id).status, documents_.at(document_id).rating)) {
+                        document_to_relevance[document_id] += term_freq * inverse_document_freq;
+                    }
                 }
             }
         }
