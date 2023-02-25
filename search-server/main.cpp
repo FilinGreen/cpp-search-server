@@ -7,10 +7,11 @@
 #include <utility>
 #include <vector>
 #include <numeric>
+#include <stdexcept>
+
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
-
 constexpr double PRECISION = 1e-6;
 
 string ReadLine() {
@@ -47,6 +48,11 @@ vector<string> SplitIntoWords(const string& text) {
 }
 
 struct Document {
+
+    Document() :id(0), relevance(0), rating(0) {};
+
+    Document(int inid, double inrelevance, int inrating) :id(inid), relevance(inrelevance), rating(inrating) {};
+
     int id;
     double relevance;
     int rating;
@@ -59,34 +65,76 @@ enum class DocumentStatus {
     REMOVED,
 };
 
+template <typename StringContainer>
+set<string> MakeUniqueNonEmptyStrings(const StringContainer& strings) {
+    set<string> non_empty_strings;
+    for (const string& str : strings) {
+        if (!str.empty()) {
+            non_empty_strings.insert(str);
+        }
+    }
+    return non_empty_strings;
+}
 
 class SearchServer {
+
 public:
-    void SetStopWords(const string& text) {
-        for (const string& word : SplitIntoWords(text)) {
-            stop_words_.insert(word);
+    template <typename StringContainer>
+    explicit SearchServer(const StringContainer& stop_words) : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {
+
+        for (const string& word : stop_words_) {
+            if (!IsValidWord(word)) {
+                throw invalid_argument("est' nevalidniy simvol"s);
+            }
         }
     }
 
-    void AddDocument(int document_id, const string& document, DocumentStatus status,
-        const vector<int>& ratings) {
-        const vector<string> words = SplitIntoWordsNoStop(document);
-        const double inv_word_count = 1.0 / words.size();
-        for (const string& word : words) {
-            word_to_document_freqs_[word][document_id] += inv_word_count;
-        }
-        documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
+    explicit SearchServer(const string& stop_words_text)
+        : SearchServer(
+            SplitIntoWords(stop_words_text))
+    {
+
     }
 
-    vector<Document> FindTopDocuments(const string& raw_query, DocumentStatus status = DocumentStatus::ACTUAL) const {
 
-        auto lambda = [status]([[maybe_unused]] int document_id, DocumentStatus stat, [[maybe_unused]] int rating) {return stat == status; };
-        return FindTopDocuments(raw_query, lambda);
+    void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
+
+        if (document_id >= 0 && documents_.count(document_id) == 0) {
+            const vector<string> words = SplitIntoWordsNoStop(document);
+            const double inv_word_count = 1.0 / words.size();
+
+            for (const string& word : words) {
+                if (IsValidWord(word)) {
+                    word_to_document_freqs_[word][document_id] += inv_word_count;
+
+                }
+                else {
+                    throw invalid_argument("est' nevalidniy simvol"s);
+                }
+            }
+
+            documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
+
+            int n = index_id_.size();
+            index_id_[n] = document_id;
+
+        }else { throw invalid_argument("ne verniy id"s);}
+
     }
-
+    
     template <typename DocumentPredicate>
     vector<Document> FindTopDocuments(const string& raw_query, const DocumentPredicate& document_predicate) const {
         const Query query = ParseQuery(raw_query);
+        for (string word : query.plus_words) {
+            if (!IsValidWord(word)) {
+                throw invalid_argument("est' nevalidniy simvol"s);
+            }
+        }
+        for (const string& word : query.minus_words) {
+            if (!IsValidWord(word) || word[0] == ' ' || word[0] == '-' || word.size() == 0) {
+                throw invalid_argument("ne verni minus slova"s);
+            }
+        }
         auto matched_documents = FindAllDocuments(query, document_predicate);
 
         sort(matched_documents.begin(), matched_documents.end(),
@@ -105,6 +153,13 @@ public:
     }
 
 
+    vector<Document> FindTopDocuments(const string& raw_query, DocumentStatus status = DocumentStatus::ACTUAL) const {
+
+        auto lambda = [status]([[maybe_unused]] int document_id, DocumentStatus stat, [[maybe_unused]] int rating) {return stat == status; };
+        return FindTopDocuments(raw_query, lambda);
+    }
+
+
     int GetDocumentCount() const {
         return documents_.size();
     }
@@ -116,6 +171,9 @@ public:
         const Query query = ParseQuery(raw_query);
         vector<string> matched_words;
         for (const string& word : query.plus_words) {
+            if (!IsValidWord(word)) {
+                throw invalid_argument("est' nevalidniy simvol"s);
+            }
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
             }
@@ -124,6 +182,9 @@ public:
             }
         }
         for (const string& word : query.minus_words) {
+            if (!IsValidWord(word) || word[0] == ' ' || word[0] == '-' || word.empty()) {
+                throw invalid_argument("ne verni minus slova"s);
+            }
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
             }
@@ -135,18 +196,34 @@ public:
         return { matched_words, documents_.at(document_id).status };
     }
 
+
+    int GetDocumentId(int num) {
+        if (num<0 || num>documents_.size()) {
+            throw out_of_range("index vne diapazona"s);
+        }
+        return index_id_.at(num);
+    }
+
 private:
     struct DocumentData {
         int rating;
         DocumentStatus status;
     };
 
+    map<int, int> index_id_;
     set<string> stop_words_;
     map<string, map<int, double>> word_to_document_freqs_;
     map<int, DocumentData> documents_;
 
     bool IsStopWord(const string& word) const {
         return stop_words_.count(word) > 0;
+    }
+
+    static bool IsValidWord(const string& word) {
+
+        return none_of(word.begin(), word.end(), [](char c) {
+            return c >= '\0' && c < ' ';
+            });
     }
 
     vector<string> SplitIntoWordsNoStop(const string& text) const {
@@ -297,6 +374,7 @@ ostream& operator<< (ostream& is, const map<T, Y>& mapa) {
     is << "}";
     return is;
 }
+/*
 template <typename T, typename U>
 void AssertEqualImpl(const T& t, const U& u, const string& t_str, const string& u_str, const string& file,
     const string& func, unsigned line, const string& hint) {
@@ -350,7 +428,7 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
     const string content = "cat in the city"s;
     const vector<int> ratings = { 1, 2, 3 };
     {
-        SearchServer server;
+        SearchServer server("dog"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         const auto found_docs = server.FindTopDocuments("in"s);
         ASSERT_EQUAL(found_docs.size(), 1u);
@@ -359,8 +437,8 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
     }
 
     {
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server("in the"s);
+        //server.SetStopWords("in the"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         ASSERT_HINT(server.FindTopDocuments("in"s).empty(),
             "Stop words must be excluded from documents"s);
@@ -375,8 +453,8 @@ void TestMinusWords() {
     const string raw_query = "-cat city dog"s;
 
     {
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server("in the"s);
+        //server.SetStopWords("in the"s);
         server.AddDocument(0, "cat in the city"s, DocumentStatus::ACTUAL, ratings);
         server.AddDocument(1, "dog in the city"s, DocumentStatus::ACTUAL, ratings);
         server.AddDocument(2, "dog in the village"s, DocumentStatus::ACTUAL, ratings);
@@ -386,16 +464,16 @@ void TestMinusWords() {
     }
 
     {
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server("in the"s);
+        //server.SetStopWords("in the"s);
         server.AddDocument(1, "dog in the city"s, DocumentStatus::ACTUAL, ratings);
         auto [result, status] = server.MatchDocument(raw_query, 1);
         vector<string> tresult = { "city"s,"dog"s };
         ASSERT_EQUAL(result, tresult);
     }
     {
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server("in the"s);
+        //server.SetStopWords("in the"s);
         server.AddDocument(1, "cat in the city"s, DocumentStatus::ACTUAL, ratings);
         auto [result, status] = server.MatchDocument(raw_query, 1);
         ASSERT(result.empty());
@@ -409,8 +487,8 @@ void TestRelevance() {
     const vector<int> ratings = { 1, 2, 3 };
     const string raw_query = "-cat city dog"s;
     {
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server("in the"s);
+        //server.SetStopWords("in the"s);
         server.AddDocument(0, "cat in the city"s, DocumentStatus::ACTUAL, ratings);
         server.AddDocument(1, "dog in the city"s, DocumentStatus::ACTUAL, ratings);
         server.AddDocument(2, "dog in the village"s, DocumentStatus::ACTUAL, ratings);
@@ -426,24 +504,24 @@ void TestRating() {
     const string raw_query = "-cat city dog"s;
     {
         const vector<int> ratings = { 1, 2, 3 };
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server("in the"s);
+        //server.SetStopWords("in the"s);
         server.AddDocument(1, "dog in the city"s, DocumentStatus::ACTUAL, ratings);
         vector<Document>result = server.FindTopDocuments(raw_query);
         ASSERT_EQUAL(result[0].rating, 2);
     }
     {
         const vector<int> ratings = { -1, -2, -3 };
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server("in the"s);
+        //server.SetStopWords("in the"s);
         server.AddDocument(2, "dog in the forest"s, DocumentStatus::ACTUAL, ratings);
         vector<Document>result = server.FindTopDocuments(raw_query);
         ASSERT_EQUAL(result[0].rating, (-2));
     }
     {
         const vector<int> ratings = { 7, -2, 3 };
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server("in the"s);
+        //server.SetStopWords("in the"s);
         server.AddDocument(3, "mouse in the city"s, DocumentStatus::ACTUAL, ratings);
         vector<Document>result = server.FindTopDocuments(raw_query);
         ASSERT_EQUAL(result[0].rating, 2);
@@ -454,8 +532,8 @@ void TestFilter() {
 
     const vector<int> ratings = { 1, 2, 3 };
     const string raw_query = "-cat city dog"s;
-    SearchServer server;
-    server.SetStopWords("in the"s);
+    SearchServer server("in the"s);
+    //server.SetStopWords("in the"s);
     server.AddDocument(0, "cat in the city"s, DocumentStatus::ACTUAL, ratings);
     server.AddDocument(1, "dog in the city"s, DocumentStatus::ACTUAL, ratings);
     server.AddDocument(2, "dog in the village"s, DocumentStatus::ACTUAL, ratings);
@@ -479,8 +557,8 @@ void TestStatus() {
 
     const vector<int> ratings = { 1, 2, 3 };
     const string raw_query = "-cat city dog"s;
-    SearchServer server;
-    server.SetStopWords("in the"s);
+    SearchServer server("in the"s);
+    //server.SetStopWords("in the"s);
     server.AddDocument(0, "cat in the city"s, DocumentStatus::ACTUAL, ratings);
     server.AddDocument(1, "dog in the city"s, DocumentStatus::ACTUAL, ratings);
     server.AddDocument(2, "dog in the village"s, DocumentStatus::ACTUAL, ratings);
@@ -513,8 +591,8 @@ void TestStatus() {
 void TestRelevanceСalculation() {
     const vector<int> ratings = { 1, 2, 3 };
     const string raw_query = "-cat city dog"s;
-    SearchServer server;
-    server.SetStopWords("in the"s);
+    SearchServer server("in the"s);
+    //server.SetStopWords("in the"s);
     server.AddDocument(0, "cat in the city"s, DocumentStatus::ACTUAL, ratings);
     server.AddDocument(1, "dog in the city"s, DocumentStatus::ACTUAL, ratings);
     server.AddDocument(2, "dog in the village"s, DocumentStatus::ACTUAL, ratings);
@@ -547,4 +625,4 @@ void TestSearchServer() {
 int main() {
     TestSearchServer();
     cout << "Search server testing finished"s << endl;
-}
+}*/
