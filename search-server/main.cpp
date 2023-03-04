@@ -241,11 +241,13 @@ private:
         bool is_minus = false;
 
         if (text[0] == '-') {
+            
+            is_minus = true;
+            text = text.substr(1);
             if (text.empty() || text[0] == ' ' || text[0] == '-') {
                 throw invalid_argument("ne verni minus slova"s);
             }
-            is_minus = true;
-            text = text.substr(1);
+
         }
         return { text, is_minus, IsStopWord(text) };
     }
