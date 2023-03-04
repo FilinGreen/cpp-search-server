@@ -82,10 +82,9 @@ public:
     template <typename StringContainer>
     explicit SearchServer(const StringContainer& stop_words) : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {
 
-        for (const string& word : stop_words_) {
-            if (!IsValidWord(word)) {
-                throw invalid_argument("est' nevalidniy simvol"s);
-            }
+        if (any_of(stop_words_.begin(), stop_words_.end(), [](string word) { return !IsValidWord(word);
+            })) {
+            throw invalid_argument("est' nevalidniy simvol"s);
         }
     }
 
@@ -99,42 +98,29 @@ public:
 
     void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
 
-        if (document_id >= 0 && documents_.count(document_id) == 0) {
-            const vector<string> words = SplitIntoWordsNoStop(document);
-            const double inv_word_count = 1.0 / words.size();
+        if (document_id < 0 || documents_.count(document_id) != 0) {
+            throw invalid_argument("ne verniy id"s);
+        }
 
-            for (const string& word : words) {
-                if (IsValidWord(word)) {
-                    word_to_document_freqs_[word][document_id] += inv_word_count;
+        const vector<string> words = SplitIntoWordsNoStop(document);
+        const double inv_word_count = 1.0 / words.size();
 
-                }
-                else {
-                    throw invalid_argument("est' nevalidniy simvol"s);
-                }
-            }
-
-            documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
-
-            int n = index_id_.size();
-            index_id_[n] = document_id;
-
-        }else { throw invalid_argument("ne verniy id"s);}
-
-    }
-    
-    template <typename DocumentPredicate>
-    vector<Document> FindTopDocuments(const string& raw_query, const DocumentPredicate& document_predicate) const {
-        const Query query = ParseQuery(raw_query);
-        for (string word : query.plus_words) {
+        for (const string& word : words) {
             if (!IsValidWord(word)) {
                 throw invalid_argument("est' nevalidniy simvol"s);
             }
+            word_to_document_freqs_[word][document_id] += inv_word_count;
         }
-        for (const string& word : query.minus_words) {
-            if (!IsValidWord(word) || word[0] == ' ' || word[0] == '-' || word.size() == 0) {
-                throw invalid_argument("ne verni minus slova"s);
-            }
-        }
+
+        documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
+
+        index_id_.push_back(document_id);
+    }
+
+    template <typename DocumentPredicate>
+    vector<Document> FindTopDocuments(const string& raw_query, const DocumentPredicate& document_predicate) const {
+        const Query query = ParseQuery(raw_query);
+
         auto matched_documents = FindAllDocuments(query, document_predicate);
 
         sort(matched_documents.begin(), matched_documents.end(),
@@ -171,9 +157,7 @@ public:
         const Query query = ParseQuery(raw_query);
         vector<string> matched_words;
         for (const string& word : query.plus_words) {
-            if (!IsValidWord(word)) {
-                throw invalid_argument("est' nevalidniy simvol"s);
-            }
+
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
             }
@@ -182,9 +166,7 @@ public:
             }
         }
         for (const string& word : query.minus_words) {
-            if (!IsValidWord(word) || word[0] == ' ' || word[0] == '-' || word.empty()) {
-                throw invalid_argument("ne verni minus slova"s);
-            }
+
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
             }
@@ -210,7 +192,7 @@ private:
         DocumentStatus status;
     };
 
-    map<int, int> index_id_;
+    vector<int> index_id_;
     set<string> stop_words_;
     map<string, map<int, double>> word_to_document_freqs_;
     map<int, DocumentData> documents_;
@@ -252,9 +234,16 @@ private:
     };
 
     QueryWord ParseQueryWord(string text) const {
+        if (!IsValidWord(text)) {
+            throw invalid_argument("est' nevalidniy simvol"s);
+        }
+
         bool is_minus = false;
 
         if (text[0] == '-') {
+            if (text.empty() || text[0] == ' ' || text[0] == '-') {
+                throw invalid_argument("ne verni minus slova"s);
+            }
             is_minus = true;
             text = text.substr(1);
         }
