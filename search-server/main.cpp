@@ -1,15 +1,18 @@
+/*
 #include <algorithm>
 #include <cmath>
-#include <iostream>
-#include <map>
-#include <set>
 #include <string>
 #include <utility>
-#include <vector>
 #include <numeric>
 #include <stdexcept>
 #include <deque>
 #include <iterator>
+*/
+
+#include <map>
+#include <set>
+#include <vector>
+#include <iostream>
 
 #include "document.h"
 #include "read_input_functions.h"
@@ -71,39 +74,6 @@ ostream& operator<< (ostream& is, const map<T, Y>& mapa) {
     is << "}";
     return is;
 }
-
-ostream& operator<<(ostream& out, Document doc){
-return out<<"{ document_id = "s<<doc.id<<", relevance = "s<<doc.relevance<<", rating = "s<<doc.rating<<" }"s; 
-}
-
-template<typename It>
-ostream& operator<<(ostream& out, IteratorRange<It> page){
-for(auto it=page.begin();it<page.end();++it){
- out<<*it;
- } 
-return out;
-}
-
-template<typename It>
-bool operator!=(IteratorRange<It> lhs,IteratorRange<It> rhs){
-return lhs.begin()>rhs.begin();
-}
-
-template<typename It>
-IteratorRange<It> operator++(IteratorRange<It> page){
-return {page.begin()+page.size(),page.end()+page.size()};
-}
-
-template<typename It>
-IteratorRange<It> operator*(IteratorRange<It> page){
-return *page;
-}
-
-template <typename Container>
-auto Paginate(const Container& c, size_t page_size) {
-return Paginator(begin(c), end(c), page_size);
-}
-
 
 int main() {
     SearchServer search_server("and in at"s);

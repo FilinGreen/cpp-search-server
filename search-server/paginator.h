@@ -1,5 +1,7 @@
 #pragma once
-
+#include <iostream>
+#include "document.h"
+#include <vector>
 
 template <typename It>
 class IteratorRange{
@@ -22,7 +24,7 @@ public:
  size_t size(){
  return distance(it_begin_,it_end_);
  }
-  
+ 
 private:
 It it_begin_;
 It it_end_;
@@ -61,6 +63,36 @@ auto end() const{
 return pages_.end();
 }
 
+
 private:
 std::vector<IteratorRange<Iterator>> pages_;
 }; 
+
+
+template<typename It>
+std::ostream& operator<<(std::ostream& out, IteratorRange<It> page)  {
+	for (auto it = page.begin(); it < page.end(); ++it) {
+		out << *it;
+	}
+	return out;
+}
+
+template<typename It>
+bool operator!=(IteratorRange<It> lhs, IteratorRange<It> rhs) {
+	return lhs.begin() > rhs.begin();
+}
+
+template<typename It>
+IteratorRange<It> operator++(IteratorRange<It> page) {
+	return { page.begin() + page.size(),page.end() + page.size() };
+}
+
+template<typename It>
+IteratorRange<It> operator*(IteratorRange<It> page) {
+	return *page;
+}
+
+template <typename Container>
+auto Paginate(const Container& c, size_t page_size) {
+	return Paginator(begin(c), end(c), page_size);
+}
