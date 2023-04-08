@@ -8,9 +8,11 @@
 #include <math.h>
 #include <stdexcept>
 #include <tuple>
+#include <iterator>
 #include "read_input_functions.h"
 #include "string_processing.h"
 #include "document.h"
+
 
 constexpr double PRECISION = 1e-6;
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
@@ -23,16 +25,28 @@ public:
     explicit SearchServer(const StringContainer& stop_words);
 
     explicit SearchServer(const std::string& stop_words_text);
+
+
     void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings);
 
     template <typename DocumentPredicate>
     std::vector<Document> FindTopDocuments(const std::string& raw_query, const DocumentPredicate& document_predicate) const;
 
-
     std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentStatus status = DocumentStatus::ACTUAL) const;
+
     int GetDocumentCount() const;
+
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query,int document_id) const;
-    int GetDocumentId(int num) ;
+
+   
+
+    std::vector<int>::const_iterator begin();
+
+    std::vector<int>::const_iterator end();
+
+    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+
+    void RemoveDocument(int document_id);
 
 private:
     struct DocumentData {
@@ -43,6 +57,7 @@ private:
     std::vector<int> index_id_;
     std::set<std::string> stop_words_;
     std::map<std::string, std::map<int, double>> word_to_document_freqs_;
+    std::map<int, std::map<std::string, double>> id_to_document_freqs_;
     std::map<int, DocumentData> documents_;
 
     bool IsStopWord(const std::string& word) const ;
@@ -132,3 +147,5 @@ private:
         }
         return matched_documents;
     }
+
+    void AddDocument(SearchServer& search_server, int document_id, const std::string& document, DocumentStatus status, std::vector<int> ratings);

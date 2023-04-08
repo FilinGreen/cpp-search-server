@@ -8,9 +8,8 @@ class IteratorRange{
 public:
 
  
- IteratorRange(It dbeg,It dend){
- it_begin_=dbeg;
- it_end_=dend;
+ IteratorRange(It dbeg,It dend):it_begin_(dbeg),it_end_(dend){
+ 
  }
  
  It begin(){
