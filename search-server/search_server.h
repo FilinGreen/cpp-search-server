@@ -40,9 +40,9 @@ public:
 
    
 
-    std::vector<int>::const_iterator begin();
+    std::set<int>::const_iterator begin();
 
-    std::vector<int>::const_iterator end();
+    std::set<int>::const_iterator end();
 
     const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
 
@@ -54,12 +54,12 @@ private:
         DocumentStatus status;
     };
 
-    std::vector<int> index_id_;
+    std::set<int> index_id_;
     std::set<std::string> stop_words_;
     std::map<std::string, std::map<int, double>> word_to_document_freqs_;
     std::map<int, std::map<std::string, double>> id_to_document_freqs_;
     std::map<int, DocumentData> documents_;
-
+    std::map<std::string, double> null_to_return_;
     bool IsStopWord(const std::string& word) const ;
     static bool IsValidWord(const std::string& word) ;
     std::vector<std::string> SplitIntoWordsNoStop(const std::string& text) const ;

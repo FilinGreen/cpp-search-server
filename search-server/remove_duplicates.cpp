@@ -1,5 +1,6 @@
 #include "remove_duplicates.h"
 
+
 void RemoveDuplicates(SearchServer& search_server) {
 
     
@@ -7,11 +8,11 @@ void RemoveDuplicates(SearchServer& search_server) {
     std::vector <int> dublikati;
     for (const int document_id : search_server) {
 
+        
+        auto& cont=search_server.GetWordFrequencies(document_id);
         std::set<std::string> slova;
-        for (auto& [slovo, chastota] : (search_server.GetWordFrequencies(document_id))) {
-            slova.insert(slovo);
-        }
 
+        std::transform(cont.begin(), cont.end(), std::inserter(slova,slova.begin()), [](auto& container) {return container.first;});
         if (doki.count(slova) == 0) {
             doki.insert(slova);
         }
@@ -25,5 +26,7 @@ void RemoveDuplicates(SearchServer& search_server) {
         std::cout << "Found duplicate document id " << z << "\n";
     }
 }
+
+    
 
     
