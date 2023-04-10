@@ -79,6 +79,7 @@ int SearchServer::GetDocumentCount() const {
      if(id_to_document_freqs_.count(document_id)){
      return id_to_document_freqs_.at(document_id);
      }else{
+         static std::map<std::string, double> null_to_return_;
          return null_to_return_;
      }
  }
@@ -90,6 +91,9 @@ int SearchServer::GetDocumentCount() const {
      
      for(auto& [word,id_freq]:word_to_document_freqs_ ){
          id_freq.erase(document_id);
+         if (word.empty()) {
+             word_to_document_freqs_.erase(word);
+         }
      }
      
  }
