@@ -3,7 +3,7 @@
 
 RequestQueue::RequestQueue(const SearchServer& search_server):search_server_(search_server){}
 
-std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query, DocumentStatus status) {
+std::vector<Document> RequestQueue::AddFindRequest(const std::string_view raw_query, DocumentStatus status) {
      auto docs =  search_server_.FindTopDocuments(raw_query,status);
      if(requests_.size()>=min_in_day_){
        if(requests_.front().zero){
@@ -24,7 +24,7 @@ std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query,
 
 
 
-std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query) {
+std::vector<Document> RequestQueue::AddFindRequest(const std::string_view raw_query) {
      auto docs = search_server_.FindTopDocuments(raw_query);
      if(requests_.size()>=min_in_day_){
        if(requests_.front().zero){
