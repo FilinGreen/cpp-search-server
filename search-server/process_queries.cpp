@@ -20,15 +20,3 @@ std::vector<Document> ProcessQueriesJoined(const SearchServer& search_server,con
     return result;
 }
 
-
-
-
-
-
-
-/*
-
-std::transform_reduce(queries.begin(),queries.end(),result.begin(),Document {},
-         [&result](std::vector<Document>& vec){ for(auto& doc:vec ){result.push_back(doc);} },
-         [&search_server](const std::string& query) {return search_server.FindTopDocuments(query);});
-*/

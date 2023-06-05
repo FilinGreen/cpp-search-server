@@ -4,10 +4,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
- 
-//#include "log_duration.h"
-//#include "test_framework.h"
- 
+
 using namespace std::string_literals;
  
 template <typename Key, typename Value>
@@ -49,20 +46,11 @@ public:
         return result;
     }
  
-    void erase (Key key) {
-        buckets_[static_cast<uint64_t>(key) % buckets_.size()].map.erase(key);
-        //std::lock_guard g (bucket.mutex);
-        //bucket.map.erase(key);
+    void erase (const Key& key) {
+        auto& bucket =buckets_[static_cast<uint64_t>(key) % buckets_.size()];
+        std::lock_guard g(bucket.mutex);
+        bucket.map.erase(key);
     }
- 
-   /*
-     struct Bucket {
-        std::mutex mutex;
-        std::map<Key, Value> map;
-    };
-    */
-  
-
 
 private:
     std::vector<Bucket> buckets_;
