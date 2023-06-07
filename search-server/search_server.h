@@ -111,10 +111,10 @@ private:
     double ComputeWordInverseDocumentFreq(const std::string_view word) const ;
 
     template <typename Lambda>
-    std::vector<Document> FindAllDocuments(const Query& query, const Lambda& lambda) const ;
+    std::vector<Document> FindAllDocuments(std::execution::sequenced_policy, const Query& query, const Lambda& lambda) const ;
 
-    template <typename Lambda, typename ExecutionPolicy>
-    std::vector<Document> FindAllDocuments(ExecutionPolicy&& policy, const Query& query, const Lambda& lambda) const;
+    template <typename Lambda>
+    std::vector<Document> FindAllDocuments(std::execution::parallel_policy, const Query& query, const Lambda& lambda) const;
 };
 
   template <typename StringContainer>
@@ -129,29 +129,14 @@ private:
  template <typename ExecutionPolicy>
  std::vector<Document> SearchServer::FindTopDocuments(ExecutionPolicy&& policy, const std::string_view raw_query, DocumentStatus status) const {
      auto lambda = [status]([[maybe_unused]] int document_id, DocumentStatus stat, [[maybe_unused]] int rating) {return stat == status; };
-     return FindTopDocuments(std::execution::par,raw_query, lambda);
+     return FindTopDocuments(policy,raw_query, lambda);
  }
  
  template <typename DocumentPredicate>
     std::vector<Document> SearchServer::FindTopDocuments(const std::string_view raw_query, const DocumentPredicate& document_predicate) const {
-        const Query query = ParseQuery(raw_query);
-
-        auto matched_documents = FindAllDocuments(query, document_predicate);
-
-        sort(matched_documents.begin(), matched_documents.end(),
-            [](const Document& lhs, const Document& rhs) {
-                if (std::abs(lhs.relevance - rhs.relevance) < PRECISION) {
-                    return lhs.rating > rhs.rating;
-                }
-                else {
-                    return lhs.relevance > rhs.relevance;
-                }
-            });
-        if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
-            matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
-        }
-        return matched_documents;
+        return FindTopDocuments(std::execution::seq,raw_query,document_predicate);
     }
+    
 
     template <typename DocumentPredicate,typename ExecutionPolicy>
     std::vector<Document> SearchServer::FindTopDocuments(ExecutionPolicy&& policy, const std::string_view raw_query, const DocumentPredicate& document_predicate) const {
@@ -178,7 +163,7 @@ private:
     }
 
   template <typename Lambda>
-    std::vector<Document> SearchServer::FindAllDocuments(const Query& query, const Lambda& lambda) const {
+    std::vector<Document> SearchServer::FindAllDocuments(std::execution::sequenced_policy,const Query& query, const Lambda& lambda) const {
         std::map<int, double> document_to_relevance;
 
         for (const auto& word : query.plus_words) {
@@ -211,11 +196,13 @@ private:
         return matched_documents;
     }
 
-    template <typename Lambda, typename ExecutionPolicy>
-    std::vector<Document> SearchServer::FindAllDocuments(ExecutionPolicy&& policy, const Query& query, const Lambda& lambda) const {
+ 
+
+    template <typename Lambda>
+    std::vector<Document> SearchServer::FindAllDocuments(std::execution::parallel_policy, const Query& query, const Lambda& lambda) const {
         ConcurrentMap<int, double> document_to_relevance(100);
 
-        for_each(policy, query.plus_words.begin(), query.plus_words.end(), [&](const auto& word){
+        for_each(std::execution::par, query.plus_words.begin(), query.plus_words.end(), [&](const auto& word){
             if (word_to_document_freqs_.count(word) != 0) {
                 const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
                 for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
@@ -228,7 +215,7 @@ private:
             }
             });
 
-        for_each(policy, query.minus_words.begin(), query.minus_words.end(), [&](const auto& word){
+        for_each(std::execution::par, query.minus_words.begin(), query.minus_words.end(), [&](const auto& word){
             if (word_to_document_freqs_.count(word) != 0) {
                 for (const auto [document_id, _] : word_to_document_freqs_.at(word)) {
                     document_to_relevance.erase(document_id);
@@ -246,4 +233,3 @@ private:
 
         return matched_documents;
     }
-    
